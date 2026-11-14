@@ -22,11 +22,13 @@ from omnigent.inner.sandbox import SandboxPolicy
 from omnigent.inner.terminal import TerminalInstance
 from tests._helpers.polling import poll_until_async
 
-_HELP = (
-    "Usage: claude doctor [options]\n"
-    "Reads settings files in the current directory without a trust prompt. "
-    "For a full checkup that can also fix issues, run /doctor in a session.\n"
+_CAPTURED_DOCTOR = json.loads(
+    (Path(__file__).with_name("fixtures") / "claude-doctor-2.1.323.json").read_text(
+        encoding="utf-8"
+    )
 )
+_HELP = _CAPTURED_DOCTOR["runs"]["help"]["stdout"]
+# Synthetic responses isolate launch-context and process-cleanup behavior.
 _HEADER = (
     "Claude Code doctor\n\nRunning: native (2.1.0)\n"
     "Commit: example-build\nPath: /opt/example/claude\n"
@@ -115,19 +117,26 @@ async def test_validator_requires_complete_controls_and_keeps_the_full_document(
         candidate = Path(args[args.index("--settings") + 1])
         document = json.loads(candidate.read_text())
         documents.append(document)
-        issue = None
-        if len(documents) == 2 and fault != "ignored-settings":
-            issue = f"- {candidate} › hooks.PreToolUse.0: Expected object, but received null\n"
-            if fault == "wrong-path":
-                issue = issue.replace(str(candidate), str(candidate.with_name("different.json")))
+        transcript_name = ("empty", "invalid", "full")[len(documents) - 1]
+        if len(documents) == 2 and fault == "ignored-settings":
+            transcript_name = "empty"
         elif len(documents) == 3 and fault == "rejected":
-            issue = f"- {candidate} › language: {secret}\n"
-        body = _HEADER + ("\nInvalid settings\n" + issue if issue else "") + _COMPLETION
+            transcript_name = "invalid"
+        transcript = _CAPTURED_DOCTOR["runs"][transcript_name]
+        placeholder = _CAPTURED_DOCTOR["settings_placeholder"]
+        body = transcript["stdout"].replace(placeholder, str(candidate))
+        stderr = transcript["stderr"].replace(placeholder, str(candidate))
+        if len(documents) == 2 and fault == "wrong-path":
+            body = body.replace(str(candidate), str(candidate.with_name("different.json")))
         if len(documents) == 3:
-            if fault == "incomplete":
-                body = _HEADER
+            if fault == "rejected":
+                body = body.replace("hooks.PreToolUse.0:", f"language: {secret}")
+            elif fault == "incomplete":
+                body = body.rsplit("\n", 2)[0]
             elif fault == "changed-build":
-                body = body.replace("example-build", "replacement-build")
+                body = body.replace(
+                    _CAPTURED_DOCTOR["provenance"]["cli_commit"], "replacement-build"
+                )
             elif fault == "unexpected-reference":
                 body = f"settings={candidate}\n" + body
             elif fault == "timeout":
@@ -136,7 +145,7 @@ async def test_validator_requires_complete_controls_and_keeps_the_full_document(
                     await asyncio.Event().wait()
                 finally:
                     deadline_cancelled.set()
-        return body, ""
+        return body, stderr
 
     monkeypatch.setattr(validation, "_run_doctor", doctor)
     if fault == "none":
