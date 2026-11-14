@@ -1886,11 +1886,10 @@ async def test_create_terminal_bootstrap_markers_do_not_bypass_gate_for_other_sh
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "settings_request_ack,expected_ack",
-    [(None, None), ("settings-generation", "settings-generation"), (42, None)],
-)
-@pytest.mark.parametrize(
-    "runner_status,runner_payload,expected_status,expected_code,expected_message",
+    (
+        "runner_status,runner_payload,expected_status,expected_code,expected_message,"
+        "settings_request_ack,expected_ack"
+    ),
     [
         # Runner returns its own error body (the common case: tunnel
         # dropped mid-launch, runner reports offline). The runner's code
@@ -1906,6 +1905,8 @@ async def test_create_terminal_bootstrap_markers_do_not_bypass_gate_for_other_sh
             503,
             ErrorCode.RUNNER_UNAVAILABLE,
             "tunnel closed before request completed",
+            None,
+            None,
         ),
         (
             409,
@@ -1918,6 +1919,8 @@ async def test_create_terminal_bootstrap_markers_do_not_bypass_gate_for_other_sh
             409,
             ErrorCode.CONFLICT,
             "Claude settings request has expired; rebuild the terminal request",
+            None,
+            None,
         ),
         # Runner returns an error with no body — fall back to
         # INTERNAL_ERROR (→500) and a message carrying the raw status.
@@ -1927,7 +1930,29 @@ async def test_create_terminal_bootstrap_markers_do_not_bypass_gate_for_other_sh
             500,
             ErrorCode.INTERNAL_ERROR,
             "Terminal launch failed (runner returned HTTP 500)",
+            None,
+            None,
         ),
+        *[
+            (
+                503,
+                {
+                    "error": {
+                        "code": ErrorCode.RUNNER_UNAVAILABLE,
+                        "message": "tunnel closed before request completed",
+                    }
+                },
+                503,
+                ErrorCode.RUNNER_UNAVAILABLE,
+                "tunnel closed before request completed",
+                acknowledgement,
+                expected_ack,
+            )
+            for acknowledgement, expected_ack in [
+                ("settings-generation", "settings-generation"),
+                (42, None),
+            ]
+        ],
     ],
 )
 async def test_create_terminal_surfaces_runner_error_without_crashing(

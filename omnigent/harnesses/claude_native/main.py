@@ -6861,8 +6861,7 @@ async def _launch_claude_terminal(
                 dispose=lambda _result: withdraw_undelivered_dispatch(),
             )
         try:
-            # Production uses HTTPX's default transport. Disable auth and redirect
-            # replays so ConnectError proves this fresh generation was not delivered.
+            # Connection failures precede admission; an explicit routing refusal may be retried.
             resp = await client.post(
                 f"/v1/sessions/{url_component(session_id)}/resources/terminals",
                 json=body,
@@ -7090,7 +7089,6 @@ def _claude_terminal_request(
         claude_args,
         bridge_dir=bridge_dir,
         workspace=Path.cwd(),
-        defer_caller_settings=True,
         legacy_bridge_identity=True,
         ap_server_url=ap_server_url,
         ap_auth_headers=ap_auth_headers,

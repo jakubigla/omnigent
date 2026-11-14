@@ -3175,7 +3175,6 @@ def augment_claude_args(
     subagent_router_dir: Path | None = None,
     turn_routing: bool = False,
     active_harnesses: Collection[str] | None = None,
-    defer_caller_settings: bool = False,
     legacy_bridge_identity: bool = False,
     settings_request: ClaudeSettingsRequest | None = None,
 ) -> list[str]:
@@ -3184,6 +3183,8 @@ def augment_claude_args(
 
     Invocation settings are written into the owner-only bridge directory so
     credential-bearing ``apiKeyHelper`` commands never appear in child argv.
+    Caller settings stay in argv until finalization can read them through the
+    terminal's selected filesystem, working directory and environment.
 
     :param claude_args: User-provided Claude Code args, e.g.
         ``("--resume", "abc")``.
@@ -3231,15 +3232,11 @@ def augment_claude_args(
         Routing on, threaded to :func:`build_hook_settings` so the
         ``UserPromptSubmit`` first-message routing hook is registered.
         ``False`` keeps every prompt off the routing round trip.
-    :param defer_caller_settings: Preserve caller settings until the runner can
-        read their files under the terminal's resolved sandbox.
     :param legacy_bridge_identity: Include the canonical settings operand so older
         runners can discover a CLI launch's bridge. The generated settings win.
     :param settings_request: Explicit owner for a deferred launch generation.
     :returns: Augmented argument list for the terminal resource.
     """
-    if settings_request is not None and not defer_caller_settings:
-        raise ValueError("Claude settings requests require deferred caller settings")
     hook_settings = build_hook_settings(
         bridge_dir,
         python_executable=python_executable,
@@ -3256,18 +3253,10 @@ def augment_claude_args(
     )
     args = _merge_disallowed_tools(list(claude_args), _OMNIGENT_DISALLOWED_TOOLS)
     args = _merge_allowed_tools(args, allowed_tools)
-    if not defer_caller_settings:
-        args, caller_settings = _pop_caller_settings(args, workspace=workspace)
-        if caller_settings:
-            hook_settings = _merge_caller_settings(hook_settings, caller_settings, bridge_dir)
     settings_path = (
-        (
-            settings_request.settings_path(bridge_dir)
-            if settings_request is not None
-            else _generation_settings_path(bridge_dir, secrets.token_hex(16))
-        )
-        if defer_caller_settings
-        else bridge_dir / _INVOCATION_SETTINGS_FILE
+        settings_request.settings_path(bridge_dir)
+        if settings_request is not None
+        else _generation_settings_path(bridge_dir, secrets.token_hex(16))
     )
     _write_json_file(
         settings_path,
@@ -3284,7 +3273,7 @@ def augment_claude_args(
     else:
         mcp_config = build_mcp_config(bridge_dir, python_executable=python_executable)
         args.extend(["--mcp-config", json.dumps(mcp_config, separators=(",", ":"))])
-    if defer_caller_settings and legacy_bridge_identity:
+    if legacy_bridge_identity:
         identity_path = bridge_dir / _INVOCATION_SETTINGS_FILE
         try:
             fd = os.open(identity_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

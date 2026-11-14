@@ -195,9 +195,7 @@ async def test_delete_session_removes_native_bridge_dir(
     revoked = []
     if owner != "none":
         request = ClaudeSettingsRequest.create(bridge_dir)
-        augment_claude_args(
-            (), bridge_dir=bridge_dir, defer_caller_settings=True, settings_request=request
-        )
+        augment_claude_args((), bridge_dir=bridge_dir, settings_request=request)
         baseline = settings_generation_path(bridge_dir, request.generation)
         baseline_bytes = baseline.read_bytes()
         if owner in {"undelivered", "unacknowledged", "admitted"}:

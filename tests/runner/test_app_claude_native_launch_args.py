@@ -709,7 +709,7 @@ def test_auto_harness_launch_names_the_routed_spawn_tool_and_preapproves_it(
 
 
 def test_pinned_harness_launch_argv_is_unchanged(bridge_dir: Path) -> None:
-    """A pinned session's argv must stay byte-identical to the pre-change one.
+    """A pinned session keeps the launch flags and settings of the base launch.
 
     The routed-spawn note and the tool allowlist are additions for auto-harness
     sessions only; leaking either into a pinned launch would change every
@@ -723,7 +723,14 @@ def test_pinned_harness_launch_argv_is_unchanged(bridge_dir: Path) -> None:
         python_executable="/venv/bin/python",
     )
 
-    assert _augmented(bridge_dir, auto_harness=False) == baseline
+    pinned = _augmented(bridge_dir, auto_harness=False)
+    baseline_settings = baseline.index("--settings") + 1
+    pinned_settings = pinned.index("--settings") + 1
+    assert json.loads(Path(pinned[pinned_settings]).read_text()) == json.loads(
+        Path(baseline[baseline_settings]).read_text()
+    )
+    baseline[baseline_settings] = pinned[pinned_settings]
+    assert pinned == baseline
     assert "--append-system-prompt" not in baseline
     assert "--allowedTools" not in baseline
 

@@ -9961,7 +9961,6 @@ async def _auto_create_claude_terminal(
         )
         claude_args = augment_claude_args(
             base_claude_args,
-            defer_caller_settings=True,
             settings_request=settings_request,
             active_harnesses=runner_mcp_disabled_servers_active_harnesses(),
             bridge_dir=bridge_dir,

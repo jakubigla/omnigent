@@ -303,7 +303,6 @@ async def test_claude_settings_prepare_reads_shared_terminal_overlay(
     args = bridge.augment_claude_args(
         ("--settings", "dependencies/settings.json"),
         bridge_dir=bridge_dir,
-        defer_caller_settings=True,
     )
     generation = bridge.record_claude_settings_boundary(bridge_dir, args, claude_args_start=0)
     terminals = TerminalRegistry()

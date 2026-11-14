@@ -340,6 +340,16 @@ Launches whose arguments are hidden inside serialized shell commands retain
 their existing behavior; this merge and validation apply to inspectable
 invocations.
 
+Each launch needs an immutable baseline and a terminal-owned output because
+overlapping launches can read the same bridge while using different caller
+settings. Request ownership protects queued preparation; admission transfers
+that protection to a receiver and terminal. A dispatch claim retains inputs
+when the sender cannot establish whether a POST was admitted. Admission epochs
+fence stale requests after reactivation, while deletion intents let the final
+known owner finish a pending deletion. Wrapper environment transport keeps
+validation and finalization in the terminal's selected environment without
+changing the host bootstrap environment.
+
 Request and terminal owners on the host release their own settings generations
 during normal cleanup. Legacy launches without the ownership capability create
 generations without request locks, which per-generation pruning skips. A crash
@@ -356,6 +366,11 @@ cannot reuse its settings operands. Retain identity and completion evidence
 without copying credential-bearing settings. File age, runner-PID death and free
 locks do not establish reclaimability. If consumer completion cannot be proved,
 retain the files and escalate to the host maintainer.
+
+A normal session change also starts a new ownership incarnation. When an old
+terminal later closes, it releases its exact claim but leaves the old
+generation and any current deletion intent for another pruning or deletion
+operation. This can retain files after a graceful close, without a crash.
 
 Explicit bridge preparation and session rotation replace malformed lifecycle
 JSON or damaged supported-schema fields with a fresh admission identity. They

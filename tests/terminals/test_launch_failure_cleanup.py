@@ -91,9 +91,7 @@ async def test_missing_tmux_during_spawn_releases_private_resources(
         monkeypatch.setattr("omnigent.harnesses.claude_native.bridge._BRIDGE_ROOT", bridge_root)
         bridge_dir = bridge_root / "prepared"
         request = ClaudeSettingsRequest.create(bridge_dir)
-        augment_claude_args(
-            (), bridge_dir=bridge_dir, defer_caller_settings=True, settings_request=request
-        )
+        augment_claude_args((), bridge_dir=bridge_dir, settings_request=request)
         baseline = settings_generation_path(bridge_dir, request.generation)
         monkeypatch.setattr(
             asyncio,
